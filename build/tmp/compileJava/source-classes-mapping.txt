@@ -1,5 +1,3 @@
-Participant.java
- Participant
 InterPoint.java
  InterPoint
 Main.java

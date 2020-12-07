@@ -1,18 +1,12 @@
-import java.io.IOException;
-import java.nio.charset.Charset;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.*;
 import java.util.stream.IntStream;
 import org.chocosolver.solver.Model;
 import org.chocosolver.solver.Solution;
 import org.chocosolver.solver.Solver;
 import org.chocosolver.solver.variables.IntVar;
-import org.jgrapht.alg.util.Pair;
 
 public class Main {
-  public static void main(String[] args) throws IOException {
+  public static void main(String[] args) {
 
     int numberOfDelivers = 2;
     int numberOfReceivers = 3;
@@ -23,9 +17,11 @@ public class Main {
 
     delivers.put(1, 250);
     delivers.put(2, 300);
+
     receivers.put(3, 120);
     receivers.put(4, 250);
     receivers.put(5, 100);
+
     interPoints.put(6, 0);
 
     List<InterPoint> connections = new ArrayList<>();
@@ -55,50 +51,81 @@ public class Main {
       List<Integer> receiversIndexes = getIndexesOfReceivers(entry.getKey(), connections);
       List<IntVar> deliversVariables = new ArrayList<>();
       List<IntVar> receiversVariables = new ArrayList<>();
+      List<Integer> chars = new ArrayList<>();
       for (Integer deliverIndex : deliversIndexes) {
         deliversVariables.add(routesTransports[deliverIndex]);
+        chars.add(1);
       }
       for (Integer receiverIndex : receiversIndexes) {
-        receiversVariables.add(routesTransports[receiverIndex].neg().intVar());
+        receiversVariables.add(routesTransports[receiverIndex]);
+        chars.add(-1);
       }
       List<IntVar> all = new ArrayList<>();
       all.addAll(deliversVariables);
       all.addAll(receiversVariables);
-      model.sum(all.toArray(IntVar[]::new), "<=", entry.getValue()).post();
+      model
+          .scalar(
+              all.toArray(IntVar[]::new),
+              chars.stream().mapToInt(x -> x).toArray(),
+              "<=",
+              entry.getValue())
+          .post();
     }
     for (Map.Entry<Integer, Integer> entry : receivers.entrySet()) {
       List<Integer> deliversIndexes = getIndexesOfDelivers(entry.getKey(), connections);
       List<Integer> receiversIndexes = getIndexesOfReceivers(entry.getKey(), connections);
       List<IntVar> deliversVariables = new ArrayList<>();
       List<IntVar> receiversVariables = new ArrayList<>();
+      List<Integer> chars = new ArrayList<>();
       for (Integer deliverIndex : deliversIndexes) {
         deliversVariables.add(routesTransports[deliverIndex]);
+        chars.add(-1);
       }
       for (Integer receiverIndex : receiversIndexes) {
-        receiversVariables.add(routesTransports[receiverIndex].neg().intVar());
+        receiversVariables.add(routesTransports[receiverIndex]);
+        chars.add(1);
       }
       List<IntVar> all = new ArrayList<>();
       all.addAll(deliversVariables);
       all.addAll(receiversVariables);
-      model.sum(all.toArray(IntVar[]::new), ">=", entry.getValue()).post();
+      model
+          .scalar(
+              all.toArray(IntVar[]::new),
+              chars.stream().mapToInt(x -> x).toArray(),
+              ">=",
+              entry.getValue())
+          .post();
     }
     for (Map.Entry<Integer, Integer> entry : interPoints.entrySet()) {
       List<Integer> deliversIndexes = getIndexesOfDelivers(entry.getKey(), connections);
       List<Integer> receiversIndexes = getIndexesOfReceivers(entry.getKey(), connections);
       List<IntVar> deliversVariables = new ArrayList<>();
       List<IntVar> receiversVariables = new ArrayList<>();
+      List<Integer> chars = new ArrayList<>();
       for (Integer deliverIndex : deliversIndexes) {
         deliversVariables.add(routesTransports[deliverIndex]);
+        chars.add(-1);
       }
       for (Integer receiverIndex : receiversIndexes) {
-        receiversVariables.add(routesTransports[receiverIndex].neg().intVar());
+        receiversVariables.add(routesTransports[receiverIndex]);
+        chars.add(1);
       }
       List<IntVar> all = new ArrayList<>();
       all.addAll(deliversVariables);
       all.addAll(receiversVariables);
-      model.sum(all.toArray(IntVar[]::new), "=", entry.getValue()).post();
+      model
+          .scalar(
+              all.toArray(IntVar[]::new),
+              chars.stream().mapToInt(x -> x).toArray(),
+              "=",
+              entry.getValue())
+          .post();
     }
-
+    //  TODO tylko na potrzeby testu zgodnosci z zadaniem
+    model.arithm(routesTransports[1], ">=", 30).post();
+    model.arithm(routesTransports[1], "<=", 50).post();
+    model.arithm(routesTransports[2], "<=", 150).post();
+    //
     model
         .scalar(
             routesTransports,
@@ -110,33 +137,6 @@ public class Main {
     Solver solver = model.getSolver();
     Solution solution = solver.findOptimalSolution(goalFunction, false);
     System.out.println(solution.toString());
-    //    WRITE SOLUTION TO FILE
-    //    writeSolutionToFile(
-    //        solution, numberOfDeliverers, numberOfReceivers, routesTransports, goalFunction);
-  }
-
-
-  private static void writeSolutionToFile(
-      Solution solution,
-      int numberOfDeliverers,
-      int numberOfReceivers,
-      IntVar[] routesTransports,
-      IntVar goalFunction)
-      throws IOException {
-    List<String> lines = new ArrayList<>();
-    int iterator = 0;
-    for (int i = 0; i < numberOfDeliverers; i++) {
-      for (int j = 0; j < numberOfReceivers; j++) {
-        lines.add(
-            String.format(
-                "Dostawca[%d] - Odbiorca[%d]: %d",
-                i, j, solution.getIntVal(routesTransports[iterator])));
-        iterator++;
-      }
-    }
-    lines.add(String.format("Zysk = %d", solution.getIntVal(goalFunction)));
-    Path out = Paths.get("solution.txt");
-    Files.write(out, lines, Charset.defaultCharset());
   }
 
   private static List<Integer> getIndexesOfDelivers(int index, List<InterPoint> connections) {
